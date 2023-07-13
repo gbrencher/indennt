@@ -1,9 +1,0 @@
-name: indennt
-channels:
-  - pytorch 
-  - conda-forge
-dependencies:
-  - pytorch
-  - rioxarray
-  - glob
-  - numpy
