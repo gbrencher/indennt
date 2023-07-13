@@ -41,13 +41,15 @@ def hyp3_to_ds(path):
 # function to prepare arrays for model run
 def arrays_to_tensor(ds, norm=True, igram_norm=[-41, 41]):
     
-    # interpolate nans (will crash model)
+    # interpolate nans (will crash model otherwise)
     unw_phase_ds = ds.unw_phase.interpolate_na(dim='x', use_coordinate=False)
     unw_phase_ds = unw_phase_ds.interpolate_na(dim='y', use_coordinate=False)
     
+    # set remaining nans to 0 and convert to tensor
     igram_tensor = torch.Tensor(unw_phase_ds.to_numpy()).nan_to_num(0)
     dem_tensor = torch.Tensor(ds.elevation.to_numpy()).nan_to_num(0)
     
+    # normalize input images for best results
     if norm==True:
         igram_tensor = 2*(((igram_tensor-igram_norm[0])/(igram_norm[1]-igram_norm[0])))-1
         dem_tensor = 2*(((dem_tensor-dem_tensor.min())/(dem_tensor.max()-dem_tensor.min())))-1
@@ -69,9 +71,9 @@ def tiled_prediction(ds, igram, dem, model, tile_size=1024):
     # pad left and bottom 
     igram_pad = F.pad(igram, (0, tile_size, 0, tile_size), 'constant', 0)
     dem_pad = F.pad(dem, (0, tile_size, 0, tile_size), 'constant', 0)
-    
     noise_pad = np.empty_like(dem_pad.numpy())
 
+    #loop through tiles
     for i in range(math.ceil((len(ds.x)/tile_size))):
         #print(f'column {i}')
         for j in range(math.ceil((len(ds.y)/tile_size))):
@@ -81,17 +83,21 @@ def tiled_prediction(ds, igram, dem, model, tile_size=1024):
             xmin = i*tile_size
             xmax = (i+1)*tile_size
             
+            # predict noise in tile
             with torch.no_grad():
                 noise = model(igram_pad[None, None, ymin:ymax, xmin:xmax], dem_pad[None, None, ymin:ymax, xmin:xmax])
-                
             noise_pad[ymin:ymax, xmin:xmax] = noise.detach().squeeze().numpy()
             
     # recover original dimensions
     noise = noise_pad[0:(len(ds.y)), 0:(len(ds.x))]
+    # correct interferogram
     signal = igram.squeeze().numpy() - noise
     
+    # undo normalization
     noise = undo_norm(noise)
     signal = undo_norm(signal)
+    
+    # inherit nans from original interferogram
     noise[ds.unw_phase.isnull()] = np.nan
     signal[ds.unw_phase.isnull()] = np.nan
 
