@@ -11,7 +11,7 @@ import math
 # load in single igram and other data 
 def hyp3_to_ds(path):
     '''
-    Reads unwrapped phase, coherence, and DEM into xarray dataset from single hyp3 folder 
+    Reads unwrapped phase and DEM into xarray dataset from single hyp3 folder 
     '''
     # globs for data to load
     unw_phase_path = glob(f'{path}/*unw_phase.tif')[0]
@@ -38,6 +38,27 @@ def hyp3_to_ds(path):
 
     return ds
 
+def isce_to_ds(path):
+    '''
+    Reads unwrapped phase and DEM into xarray dataset from single isce folder 
+    '''
+    # globs for data to load
+    phase_path = glob(f'{path}/merged/filt_topophase.unw.geo.vrt')[0]
+    dem_path = glob(f'{path}/merged/dem.crop.vrt')[0]
+    
+    # read unw_phase into data array
+    ds = rioxarray.open_rasterio(phase_path, masked=True).isel(band=1).to_dataset(name='unw_phase')
+    ds = ds.where(ds['unw_phase'] != 0.0) # isce uses 0 for nodata
+      
+    #open dem and add to ds
+    dem_da = rioxarray.open_rasterio(dem_path)
+    ds['elevation'] = (('y', 'x'), dem_da.squeeze().values)
+    
+    # reproject to utm
+    ds = ds.rio.reproject(ds.rio.estimate_utm_crs())
+    
+    return ds
+
 # function to prepare arrays for model run
 def arrays_to_tensor(ds, norm=True, igram_norm=[-41, 41]):
     
@@ -52,7 +73,7 @@ def arrays_to_tensor(ds, norm=True, igram_norm=[-41, 41]):
     # normalize input images for best results
     if norm==True:
         igram_tensor = 2*(((igram_tensor-igram_norm[0])/(igram_norm[1]-igram_norm[0])))-1
-        dem_tensor = 2*(((dem_tensor-dem_tensor.min())/(dem_tensor.max()-dem_tensor.min())))-1
+        dem_tensor = 2*(((dem_tensor-dem_tensor.abs().min())/(dem_tensor.max()-dem_tensor.abs().min())))-1
     
     return igram_tensor, dem_tensor
 
@@ -104,8 +125,11 @@ def tiled_prediction(ds, igram, dem, model, tile_size=1024):
     return noise, signal
 
 # correct a single hyp3 igram
-def correct_single_igram(granule_path, model):
-    ds = hyp3_to_ds(granule_path)
+def correct_single_igram(igram_path, model, processor):
+    if processor == 'hyp3':
+        ds = hyp3_to_ds(igram_path)
+    if processor == 'isce':
+        ds = isce_to_ds(igram_path)
     igram, dem = arrays_to_tensor(ds)
     noise, signal = tiled_prediction(ds=ds, igram=igram, dem=dem, model=model)
 
@@ -115,24 +139,25 @@ def correct_single_igram(granule_path, model):
     return ds
 
 # correct all hyp3 igrams in a directory
-def correct_hyp3_dir(hyp3_path, model, skip_exist=True):
-    hyp3_list = os.listdir(hyp3_path)
-    for i, granule in enumerate(hyp3_list):
-        granule_path = f'{hyp3_path}/{granule}'
+def correct_igram_dir(path, model, processor):
+    igram_list = os.listdir(path)
+    for i, igram in enumerate(igram_list):
+        igram_path = f'{path}/{igram}'
         if skip_exist==True:
-            if os.path.exists(f'{granule_path}/{granule}_unw_phase_CNN_signal.tif'):
-                print(f'unw_phase_CNN already in {granule}, skipping') 
+            if os.path.exists(f'{igram_path}/{igram}_unw_phase_CNN_signal.tif'):
+                print(f'unw_phase_CNN already in {igram}, skipping') 
                 continue
-        print(f'working on {granule}, {i+1}/{len(hyp3_list)}')
         
-        ds = hyp3_to_ds(granule_path)
+        print(f'working on {igram}, {i+1}/{len(igram_list)}')
+        if processor == 'hyp3':
+            ds = hyp3_to_ds(igram_path)
+        if processor == 'isce':
+            ds = isce_to_ds(igram_path)
+            
         igram, dem = arrays_to_tensor(ds)
         noise, signal = tiled_prediction(ds=ds, igram=igram, dem=dem, model=model)
-
         ds['pred_noise'] = (('y', 'x'), noise)
         ds['pred_signal'] = (('y', 'x'), signal)
 
-        ds.pred_noise.rio.to_raster(f'{granule_path}/{granule}_unw_phase_CNN_noise.tif')
-        ds.pred_signal.rio.to_raster(f'{granule_path}/{granule}_unw_phase_CNN_signal.tif')
-    
-    
+        ds.pred_noise.rio.to_raster(f'{igram_path}/{igram}_unw_phase_CNN_noise.tif')
+        ds.pred_signal.rio.to_raster(f'{igram_path}/{igram}_unw_phase_CNN_signal.tif')
