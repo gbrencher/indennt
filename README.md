@@ -19,11 +19,11 @@ $ mamba env create -f environment.yml
 $ conda activate indennt
 ```
 ## Usage
-While the CNN can correct unwrapped interferograms from any source, it was trained on [HyP3](https://hyp3-docs.asf.alaska.edu/guides/insar_product_guide/) interferograms with 40 m spatial resolution. The example notebook demonstrates functions to correct HyP3 interferograms.
+The CNN can correct unwrapped interferograms from any source. It was trained on [HyP3](https://hyp3-docs.asf.alaska.edu/guides/insar_product_guide/) interferograms with 40 m spatial resolution. The example notebook demonstrates functions to correct HyP3 interferograms and ISCE interferograms.
 
 ```
 from indennt.models import UNet, torch
-from indennt.core import correct_single_igram, correct_hyp3_dir
+from indennt.core import correct_single_igram, correct_igram_dir
 import matplotlib.pyplot as plt
 
 #load model
@@ -31,17 +31,23 @@ model = UNet()
 model.load_state_dict(torch.load('weights/noisemodel1.4_174epochs'))
 model.eval();
 
-# correct a single hyp3 interferogram, return as xarray ds
+# correct a single hyp3 interferogram, return xarray ds
 igram_path = '/mnt/d/indennt/hyp3_app/AT137/2020/S1BB_20200808T011058_20201007T011100_VVP060_INT40_G_ueF_70CB'
-ds = correct_single_igram(igram_path, model)
+ds = correct_single_igram(igram_path, model, processor='hyp3')
+
+# correct a single isce interferogram, return xarray ds
+igram_path = '/mnt/d/indennt/isce_app/AT137/2020/20200808-20201007'
+ds = correct_single_igram(igram_path, model, processor='isce')
 
 # correct multiple hyp3 interferograms
-#hyp3_path = '/mnt/d/indennt/hyp3_app/AT137/2017' # dir containing hyp3 outputs
-#correct_hyp3_dir(hyp3_path, model, skip_exist=True)
+hyp3_path = '/mnt/d/indennt/hyp3_app/AT137/2017' # dir containing hyp3 outputs
+correct_igram_dir(hyp3_path, model, processor='hyp3', skip_exist=True)
+
+# correct multiple isce interferograms
+isce_path = '/mnt/d/indennt/isce_app/AT137/2020' # dir containing isce outputs
+correct_igram_dir(isce_path, model, processor='isce', skip_exist=True)
 ```
 ![plot](./images/example_correction.png)
-
-There's a lot more to be done, but hopefully this is enough to get started. 
 
 ## Contact 
 Please don't hesitate to reach out with questions or ideas! I'll do my best to get back to you. 
