@@ -33,19 +33,53 @@ model.eval();
 
 # correct a single hyp3 interferogram, return xarray ds
 igram_path = '/mnt/d/indennt/hyp3_app/AT137/2020/S1BB_20200808T011058_20201007T011100_VVP060_INT40_G_ueF_70CB'
-ds = correct_single_igram(igram_path, model, processor='hyp3')
+ds = correct_single_igram(igram_path,
+                          model,
+                          processor='hyp3',
+                          igram_suffix='unw_phase.tif',
+                          dem_suffix='dem.tif',
+                          igram_norm=[-41, 41],
+                          dem_norm=[0, 4400],
+                          use_igram_range = False,
+                          use_dem_range=False
+                         )
 
 # correct a single isce interferogram, return xarray ds
 igram_path = '/mnt/d/indennt/isce_app/AT137/2020/20200808-20201007'
-ds = correct_single_igram(igram_path, model, processor='isce')
+ds = correct_single_igram(igram_path,
+                          model,
+                          processor='isce',
+                          igram_norm=[-41, 41],
+                          dem_norm=[0, 4400],
+                          use_igram_range = False,
+                          use_dem_range=False
+                         )
 
 # correct multiple hyp3 interferograms
 hyp3_path = '/mnt/d/indennt/hyp3_app/AT137/2017' # dir containing hyp3 outputs
-correct_igram_dir(hyp3_path, model, processor='hyp3', skip_exist=True)
+correct_igram_dir(hyp3_path,
+                  model,
+                  processor='hyp3',
+                  igram_suffix='unw_phase.tif',
+                  dem_suffix='dem.tif',
+                  igram_norm=[-41, 41],
+                  dem_norm=[0, 4400],
+                  use_igram_range = False,
+                  use_dem_range=False,
+                  skip_exist=True
+                 )
 
 # correct multiple isce interferograms
 isce_path = '/mnt/d/indennt/isce_app/AT137/2020' # dir containing isce outputs
-correct_igram_dir(isce_path, model, processor='isce', skip_exist=True)
+correct_igram_dir(isce_path,
+                  model,
+                  processor='isce',
+                  igram_norm=[-41, 41],
+                  dem_norm=[0, 4400],
+                  use_igram_range = False,
+                  use_dem_range=False,
+                  skip_exist=True
+                 )
 ```
 ![plot](./images/example_correction.png)
 

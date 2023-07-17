@@ -9,13 +9,13 @@ import os
 import math
 
 # load in single igram and other data 
-def hyp3_to_ds(path):
+def hyp3_to_ds(path, igram_suffix, dem_suffix):
     '''
     Reads unwrapped phase and DEM into xarray dataset from single hyp3 folder 
     '''
     # globs for data to load
-    unw_phase_path = glob(f'{path}/*unw_phase.tif')[0]
-    dem_path = glob(f'{path}/*dem.tif')[0]
+    unw_phase_path = glob(f'{path}/*{igram_suffix}')[0]
+    dem_path = glob(f'{path}/*{dem_suffix}')[0]
 
     # list granules for coordinate
     granule = os.path.split(unw_phase_path)[-1][0:-14]
@@ -60,7 +60,7 @@ def isce_to_ds(path):
     return ds
 
 # function to prepare arrays for model run
-def arrays_to_tensor(ds, norm=True, igram_norm=[-41, 41]):
+def arrays_to_tensor(ds, igram_norm, dem_norm, use_igram_range, use_dem_range, norm=True):
     
     # interpolate nans (will crash model otherwise)
     unw_phase_ds = ds.unw_phase.interpolate_na(dim='x', use_coordinate=False)
@@ -72,18 +72,24 @@ def arrays_to_tensor(ds, norm=True, igram_norm=[-41, 41]):
     
     # normalize input images for best results
     if norm==True:
-        igram_tensor = 2*(((igram_tensor-igram_norm[0])/(igram_norm[1]-igram_norm[0])))-1
-        dem_tensor = 2*(((dem_tensor-dem_tensor.abs().min())/(dem_tensor.max()-dem_tensor.abs().min())))-1
+        if use_igram_range==True:
+            igram_tensor = 2*(((igram_tensor-igram_tensor.min())/(igram_tensor.max()-igram_tensor.min())))-1
+        else:
+            igram_tensor = 2*(((igram_tensor-igram_norm[0])/(igram_norm[1]-igram_norm[0])))-1
+        if use_dem_range==True:
+            dem_tensor = 2*(((dem_tensor-dem_tensor.abs().min())/(dem_tensor.max()-dem_tensor.abs().min())))-1
+        else:
+            dem_tensor = 2*(((dem_tensor-dem_norm[0])/(dem_norm[1]-dem_norm[0])))-1
     
     return igram_tensor, dem_tensor
 
 #function to return to original values
-def undo_norm(array, min=-41, max=41):
-    array = ((array+1)*((max-min)/2))+min
+def undo_norm(array, igram_norm):
+    array = ((array+1)*((igram_norm[1]-igram_norm[0])/2))+igram_norm[0]
     return array
 
 # tiled prediction to avoid large RAM usage
-def tiled_prediction(ds, igram, dem, model, tile_size=1024):
+def tiled_prediction(ds, igram, dem, model, igram_norm, tile_size=1024):
     xmin=0
     xmax=tile_size
     ymin=0
@@ -115,8 +121,8 @@ def tiled_prediction(ds, igram, dem, model, tile_size=1024):
     signal = igram.squeeze().numpy() - noise
     
     # undo normalization
-    noise = undo_norm(noise)
-    signal = undo_norm(signal)
+    noise = undo_norm(noise, igram_norm)
+    signal = undo_norm(signal, igram_norm)
     
     # inherit nans from original interferogram
     noise[ds.unw_phase.isnull()] = np.nan
@@ -125,13 +131,23 @@ def tiled_prediction(ds, igram, dem, model, tile_size=1024):
     return noise, signal
 
 # correct a single hyp3 igram
-def correct_single_igram(igram_path, model, processor):
+def correct_single_igram(igram_path,
+                         model,
+                         processor,
+                         igram_suffix='unw_phase.tif',
+                         dem_suffix='dem.tif',
+                         igram_norm=[-41, 41],
+                         dem_norm=[0, 4400],
+                         use_igram_range = False,
+                         use_dem_range=False
+                        ):
+
     if processor == 'hyp3':
-        ds = hyp3_to_ds(igram_path)
+        ds = hyp3_to_ds(igram_path, igram_suffix, dem_suffix)
     if processor == 'isce':
         ds = isce_to_ds(igram_path)
-    igram, dem = arrays_to_tensor(ds)
-    noise, signal = tiled_prediction(ds=ds, igram=igram, dem=dem, model=model)
+    igram, dem = arrays_to_tensor(ds, igram_norm, dem_norm, use_igram_range, use_dem_range)
+    noise, signal = tiled_prediction(ds=ds, igram=igram, dem=dem, model=model, igram_norm=igram_norm)
 
     ds['pred_noise'] = (('y', 'x'), noise)
     ds['pred_signal'] = (('y', 'x'), signal)
@@ -139,25 +155,37 @@ def correct_single_igram(igram_path, model, processor):
     return ds
 
 # correct all hyp3 igrams in a directory
-def correct_igram_dir(path, model, processor):
+def correct_igram_dir(path,
+                      model,
+                      processor,
+                      igram_suffix='unw_phase.tif',
+                      dem_suffix='dem.tif',
+                      igram_norm=[-41, 41],
+                      dem_norm=[0, 4400],
+                      use_igram_range = False,
+                      use_dem_range=False,
+                      skip_exist=True
+                     ):
+    
     igram_list = os.listdir(path)
-    for i, igram in enumerate(igram_list):
-        igram_path = f'{path}/{igram}'
+    for i, igram_name in enumerate(igram_list):
+        igram_path = f'{path}/{igram_name}'
         if skip_exist==True:
-            if os.path.exists(f'{igram_path}/{igram}_unw_phase_CNN_signal.tif'):
-                print(f'unw_phase_CNN already in {igram}, skipping') 
+            if os.path.exists(f'{igram_path}/{igram_name}_unw_phase_CNN_signal.tif'):
+                print(f'unw_phase_CNN already in {igram_name}, skipping') 
                 continue
         
-        print(f'working on {igram}, {i+1}/{len(igram_list)}')
+        print(f'working on {igram_name}, {i+1}/{len(igram_list)}')
         if processor == 'hyp3':
-            ds = hyp3_to_ds(igram_path)
+            ds = hyp3_to_ds(igram_path, igram_suffix, dem_suffix)
         if processor == 'isce':
             ds = isce_to_ds(igram_path)
             
-        igram, dem = arrays_to_tensor(ds)
-        noise, signal = tiled_prediction(ds=ds, igram=igram, dem=dem, model=model)
+        igram, dem = arrays_to_tensor(ds, igram_norm, dem_norm, use_igram_range, use_dem_range)
+        noise, signal = tiled_prediction(ds=ds, igram=igram, dem=dem, model=model, igram_norm=igram_norm)
+        
         ds['pred_noise'] = (('y', 'x'), noise)
         ds['pred_signal'] = (('y', 'x'), signal)
 
-        ds.pred_noise.rio.to_raster(f'{igram_path}/{igram}_unw_phase_CNN_noise.tif')
-        ds.pred_signal.rio.to_raster(f'{igram_path}/{igram}_unw_phase_CNN_signal.tif')
+        ds.pred_noise.rio.to_raster(f'{igram_path}/{igram_name}_unw_phase_CNN_noise.tif')
+        ds.pred_signal.rio.to_raster(f'{igram_path}/{igram_name}_unw_phase_CNN_signal.tif')
