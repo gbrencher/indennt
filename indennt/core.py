@@ -67,19 +67,23 @@ def arrays_to_tensor(ds, igram_norm, dem_norm, use_igram_range, use_dem_range, n
     unw_phase_ds = unw_phase_ds.interpolate_na(dim='y', use_coordinate=False)
     
     # set remaining nans to 0 and convert to tensor
-    igram_tensor = torch.Tensor(unw_phase_ds.to_numpy()).nan_to_num(0)
-    dem_tensor = torch.Tensor(ds.elevation.to_numpy()).nan_to_num(0)
+    igram_np = unw_phase_ds.to_numpy()
+    dem_np = ds.elevation.to_numpy()
     
     # normalize input images for best results
     if norm==True:
         if use_igram_range==True:
-            igram_tensor = 2*(((igram_tensor-igram_tensor.min())/(igram_tensor.max()-igram_tensor.min())))-1
+            igram_np = 2*(((igram_np-igram_np.min())/(igram_np.max()-igram_np.min())))-1
         else:
-            igram_tensor = 2*(((igram_tensor-igram_norm[0])/(igram_norm[1]-igram_norm[0])))-1
+            igram_np = 2*(((igram_np-igram_norm[0])/(igram_norm[1]-igram_norm[0])))-1
         if use_dem_range==True:
-            dem_tensor = 2*(((dem_tensor-dem_tensor.abs().min())/(dem_tensor.max()-dem_tensor.abs().min())))-1
+            dem_np = 2*(((dem_np-dem_np.abs().min())/(dem_np.max()-dem_np.abs().min())))-1
         else:
-            dem_tensor = 2*(((dem_tensor-dem_norm[0])/(dem_norm[1]-dem_norm[0])))-1
+            dem_np = 2*(((dem_np-dem_norm[0])/(dem_norm[1]-dem_norm[0])))-1
+            
+    # set remaining nans to 0 and convert to tensor
+    igram_tensor = torch.Tensor(igram_np).nan_to_num(0)
+    dem_tensor = torch.Tensor(dem_np).nan_to_num(0)
     
     return igram_tensor, dem_tensor
 
