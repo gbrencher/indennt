@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 
 #load model
 model = UNet()
-model.load_state_dict(torch.load('weights/noisemodel1.4_174epochs'))
+model.load_state_dict(torch.load('weights/noisemodel1.6_62epochs'))
 model.eval();
 
 # correct a single hyp3 interferogram, return xarray ds
@@ -38,10 +38,10 @@ ds = correct_single_igram(igram_path,
                           processor='hyp3',
                           igram_suffix='unw_phase.tif',
                           dem_suffix='dem.tif',
-                          igram_norm=[-41, 41],
-                          dem_norm=[0, 4400],
-                          use_igram_range = False,
-                          use_dem_range=False
+                          igram_norm=[-50, 50], # this range works well in most places
+                          dem_norm=[1200, 4060], # adjust to min and max elevation in aoi
+                          use_igram_range = False, 
+                          use_dem_range=False # if DEM contains no outliers
                          )
 
 # correct a single isce interferogram, return xarray ds
@@ -49,8 +49,8 @@ igram_path = '/mnt/d/indennt/isce_app/AT137/2020/20200808-20201007'
 ds = correct_single_igram(igram_path,
                           model,
                           processor='isce',
-                          igram_norm=[-41, 41],
-                          dem_norm=[0, 4400],
+                          igram_norm=[-50, 50],
+                          dem_norm=[1200, 4060],
                           use_igram_range = False,
                           use_dem_range=False
                          )
@@ -62,8 +62,8 @@ correct_igram_dir(hyp3_path,
                   processor='hyp3',
                   igram_suffix='unw_phase.tif',
                   dem_suffix='dem.tif',
-                  igram_norm=[-41, 41],
-                  dem_norm=[0, 4400],
+                  igram_norm=[-50, 50],
+                  dem_norm=[1200, 4060],
                   use_igram_range = False,
                   use_dem_range=False,
                   skip_exist=True
@@ -74,8 +74,8 @@ isce_path = '/mnt/d/indennt/isce_app/AT137/2020' # dir containing isce outputs
 correct_igram_dir(isce_path,
                   model,
                   processor='isce',
-                  igram_norm=[-41, 41],
-                  dem_norm=[0, 4400],
+                  igram_norm=[-50, 50],
+                  dem_norm=[1200, 4060],
                   use_igram_range = False,
                   use_dem_range=False,
                   skip_exist=True
