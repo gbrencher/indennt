@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 
 #load model
 model = UNet()
-model.load_state_dict(torch.load('weights/noisemodel1.6_62epochs'))
+model.load_state_dict(torch.load('weights/noisemodel1.4_174epochs'))
 model.eval();
 
 # correct a single hyp3 interferogram, return xarray ds
