@@ -3,7 +3,7 @@ Interferogram denoising neural network
 
 Atmospheric noise frequently obscures real displacement signals in InSAR interferograms. This convolutional neural network has been trained to remove atmospheric noise from interferograms over mountainous environments, preserving small, defined displacement signals associated with landslides, rock glaciers, and other slope processes. It can be easily applied to correct your own interferograms. 
 
-For more information, check out [this preprint](https://www.techrxiv.org/articles/preprint/Removing_Atmospheric_Noise_from_InSAR_Interferograms_in_Mountainous_Regions_with_a_Convolutional_Neural_Network/22626748)
+For more information, check out [our paper in Computers & Geosciences](https://www.sciencedirect.com/science/article/pii/S0098300424002541)
 
 ## Installation
 Download and install Miniconda
